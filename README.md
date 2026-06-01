@@ -1,2 +1,79 @@
 # macro-bubble-watch
-An AI-powered analytical framework that monitors, extracts, and evaluates daily news to quantify probabilities of a US debt crisis and an AI market bubble.
+
+> 给几个月后回来的我自己看的说明。读这一份就能想起整个项目怎么转。
+
+## 这是什么
+
+每天追踪两个「12 个月尾部事件」的发生概率,持续记录判断和依据:
+
+- **事件 A — 美债危机**
+- **事件 B — AI 泡沫破裂**
+
+目标不是预测某一天,而是维护一条**随时间更新的主观概率曲线**,并留下每一次更新的理由,
+好让未来的自己能复盘"当时我为什么这么想"。
+
+> **声明:这里的概率是结构化主观判断,不是校准过的预测。** 别拿它当模型输出或可下注的赔率。
+
+## 仓库角色:只存数据 / 记忆
+
+**本仓库只是数据与记忆层。** 它不包含运行逻辑。
+
+- **运行说明、prompt、模型路由都在云端 router 配置里,不在本仓库。**
+- 所以仓库里**没有也不该有** `CLAUDE.md` 或任何 prompt 文件 —— 那是预期的,不是缺失。
+- agent 由云端调度唤醒,读这里的数据 → 做分析 → 把产出写回这里并 commit。
+
+## 节奏(四级金字塔)
+
+| 级别 | 触发 | 做什么 | 产出位置 |
+|------|------|--------|----------|
+| **日** | 每天 09:00 (UTC+8) | 拉指标读数,更新 A/B 概率与理由,写当日条目,刷新 `state.md` 和 `index.jsonl` | `tracker/daily/` |
+| **周** | 每周日 | 汇总本周日报,看趋势/转折,写周度小结 | `tracker/weekly/` |
+| **月** | 每月 1 号 | 月度回顾:基准是否还成立、阈值/篮子是否要调 | `tracker/monthly/` |
+| **抽查审计** | 每 4 天 | 抽查近期判断的一致性与漂移,必要时修正 `state.md` | `tracker/audit/` |
+
+## 文件角色
+
+| 路径 | 角色 |
+|------|------|
+| `tracker/state.md` | **单一真相源 (single source of truth)。** 当前 A/B 概率、阈值集合、篮子成分、最新指标读数、未决问题、上次审计——一切"现在的状态"以此为准。 |
+| `tracker/index.jsonl` | **检索索引。** 每行一条 JSON,指向某一天/某一篇产出的摘要与元数据。用来快速定位历史,不是真相源。 |
+| `tracker/daily/` | 每日产出条目。 |
+| `tracker/weekly/` | 周度小结。 |
+| `tracker/monthly/` | 月度回顾。 |
+| `tracker/audit/` | 抽查审计记录。 |
+| `tracker/state_history/` | `state.md` 被审计修正**之前**的历史备份快照。 |
+
+## 检索机制
+
+**不用向量搜索。** 流程是:
+
+1. 读 `tracker/index.jsonl`(轻量,每行一条摘要+元数据)。
+2. 自行判断这次需要回看哪几天 / 哪几篇。
+3. 只把那几篇原文读进来细看。
+
+索引负责"找得到",原文负责"看得清",分工明确。
+
+## 纪律
+
+- **审计修改 `state.md` 之前,必须先把当前版本备份到 `tracker/state_history/`。**
+  没有备份就不许动真相源。
+- `state.md` 是唯一权威状态;别在别处维护第二份"当前概率"。
+
+### commit tag
+
+每次提交用前缀标明级别:
+
+| tag | 含义 |
+|-----|------|
+| `[DAILY]` | 日度更新 |
+| `[WEEKLY]` | 周度小结 |
+| `[MONTHLY]` | 月度回顾 |
+| `[AUDIT]` | 抽查审计(只记录,未改真相源) |
+| `[AUDIT-FIX]` | 审计修正了 `state.md`(此前必有 `state_history/` 备份) |
+| `[INIT]` | 初始化脚手架 |
+
+## 怎么读输出
+
+- 想知道**现在**的判断:看 `tracker/state.md`。
+- 想知道**怎么走到现在**:从 `index.jsonl` 找日期,再去 `daily/` / `weekly/` / `monthly/` 看原文。
+- 想知道**判断被改过没有**:看 `audit/` 和 `state_history/`。
